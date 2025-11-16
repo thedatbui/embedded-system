@@ -7,7 +7,7 @@
 \addbibresource{references.bib}
 
 \title{Threat Modeling of HealthKit Applications}
-\author{Fernandez Ojeda Franklin {000541971} \\ Bui The Dat {Matricule}}
+\author{Fernandez Ojeda Franklin {000541971} \\ Bui The Dat {000546997}}
 \date{\today}
 
 \begin{document}
@@ -54,6 +54,8 @@ External applications that interact with HealthKit via the official APIs \parenc
 These apps may request read and/or write access to specific categories of health data, but only after receiving explicit user authorization. 
 Access control is enforced through HealthKit entitlements, meaning apps cannot interact with HealthKit unless they are granted permission at both the system and user levels. 
 Third-party apps form an important part of the threat landscape since they represent a less-trusted zone with varying degrees of security maturity.
+
+A report in 2021 has shown that third-party health apps using the FHIR standard were vulnerable to hacking due to weak authentication and insecure data transmission. Attackers could exploit these flaws to access millions of patient and clinician records. This highlights that once data leaves a HIPAA-protected environment, it is no longer governed by its stringent security standards.
 
 \subsubsection{External Health Devices}
 Devices such as heart-rate monitors, glucose meters, blood-pressure cuffs, activity sensors, and other IoT health peripherals communicating via Bluetooth Low Energy (BLE) \parencite{appleSecurity2021}. 
@@ -177,91 +179,131 @@ Only the sender and recipient possess the decryption keys, ensuring privacy even
 
 This section applies the STRIDE threat modeling methodology to the Apple HealthKit ecosystem.  
 Each threat category is analysed in relation to concrete HealthKit components and data flows, with references to Apple’s official security documentation \parencite{appleSecurity2023,applePrivacy2023,appleSecurity2021} and recent studies on digital health systems \parencite{iqvia2021,mobihealth2021,ncbi2023}.  
-Table~\ref{tab:stride-healthkit} summarizes the main threats, impacted assets, and existing mitigations.
+
+
+Here is the revised text in English, incorporating your requests for a concise overview, corrections, plausible scenarios, and mitigations for each problem.
 
 \subsection{Overview}
 
-HealthKit handles one of the most sensitive categories of personal information: health and biomedical data.  
-It integrates multiple actors (user devices, external sensors, clinical institutions, third-party applications) and crosses several trust boundaries (local database, BLE interfaces, cloud synchronization, user-to-user sharing).  
-Such an environment makes STRIDE a relevant framework for identifying security weaknesses and residual risks.
+HealthKit handles one of the most sensitive categories of personal information. It integrates multiple actors (devices, sensors, apps, clinical institutions) and crosses several trust boundaries (local, cloud, BLE), making STRIDE a relevant framework for identifying security risks.
 
-\vspace{0.3cm}
+The STRIDE model categorizes threats as follows: 
+\begin{itemize} 
+    \item \textbf{Spoofing:} Impersonating a valid user, device, or component. 
+    \item \textbf{Tampering:} Maliciously modifying data in transit or at rest. 
+    \item \textbf{Repudiation:} Denying that an action was performed. 
+    \item \textbf{Information Disclosure:} Exposing data to unauthorized parties. 
+    \item \textbf{Denial of Service (DoS):} Preventing legitimate access to the system or data. 
+    \item \textbf{Elevation of Privilege:} Gaining capabilities beyond what is authorized. 
+\end{itemize}
 
-\begin{table}[h!]
-\centering
-\small
-\begin{tabular}{|p{2.2cm}|p{5cm}|p{5.5cm}|}
-\hline
-\textbf{Threat Category} & \textbf{Examples in HealthKit Context} & \textbf{Existing Mitigations (Apple)} \\
-\hline
-\textbf{Spoofing} &
-Fake BLE health sensors; malicious apps impersonating legitimate ones; forged OAuth identities for Health Records. &
-BLE pairing with authenticated channels; app entitlements; OAuth 2.0 with secure tokens; device-bound keys. \\
-\hline
-\textbf{Tampering} &
-Manipulation of workout data, step counts, or imported medical records; modification of temporary journal files during device lock. &
-Encrypted HealthKit Store; data provenance metadata; integrity-protected records; protected journal merging on unlock. \\
-\hline
-\textbf{Repudiation} &
-Third-party apps denying data creation/deletion; unclear audit trail for user-to-user Health Sharing. &
-HealthKit stores provenance for each record; system logs; enforced app identifiers; signed clinical data. \\
-\hline
-\textbf{Information Disclosure} &
-Unauthorized access to health metrics; cloud interception; access by apps without permission; Medical ID exposed on lock screen. &
-Data Protection classes; E2EE in iCloud (opt-in); granular user permissions; “empty results” for unauthorized queries. \\
-\hline
-\textbf{Denial of Service} &
-BLE jamming; corrupted journal preventing DB merge; iCloud sync delays blocking data consistency; malicious apps flooding HealthKit with writes. &
-Process isolation; watchdog limits; safe recovery of journals; robust cloud retry mechanisms. \\
-\hline
-\textbf{Elevation of Privilege} &
-App writing data without proper permission; exploiting BLE device vulnerabilities; bypassing user consent screens. &
-Strict HealthKit entitlements; OS-level permission gating; sandboxing; App Store review enforcing health-data rules. \\
-\hline
-\end{tabular}
-\caption{STRIDE threat categories applied to Apple HealthKit.}
-\label{tab:stride-healthkit}
-\end{table}
+\newpage \subsection{Detailed STRIDE Analysis} \subsection{Problems related to iCloud} With iOS 12 or later, Apple offers end-to-end encryption (E2EE) as an opt-in feature (Advanced Data Protection), which means Apple cannot access the data. On older versions, or without E2EE enabled, Apple held the encryption keys.
 
-\newpage
-\subsection{Detailed STRIDE Analysis}
+This leads to several risks: 
+\begin{itemize} 
+    \item A compromise of Apple's servers or a legal request could allow access to these keys and decrypt user health data (\textbf{Information Disclosure}). 
+    \item A sophisticated Man-in-the-Middle (MitM) attack targeting Apple's servers was theoretically possible. 
+    \item iCloud sync delays can block data consistency, impacting apps or users who need up-to-date information (\textbf{Denial of Service}). 
+\end{itemize}
 
-\subsubsection{Spoofing Identity}
+\textbf{Mitigations:} 
+\begin{itemize} 
+    \item \textbf{User-Side:} Enable Two-Factor Authentication (2FA) and update iOS to enable Advanced Data Protection, which enforces E2EE for most iCloud data, including health backups. 
+    \item \textbf{Provider-Side:} Apple's continued migration to E2EE by default. 
+\end{itemize}
 
-Spoofing concerns the impersonation of legitimate actors. In the context of HealthKit, this primarily affects BLE health peripherals, where low-cost sensors may be impersonated or replayed in order to inject falsified measurements \parencite{appleSecurity2021}. Third-party applications also represent a risk if a malicious app attempts to pose as a trusted health app. Similarly, spoofed OAuth servers operated by malicious actors could be used to phish user credentials during the Health Records import process. 
+\subsection{Problems related to Third-party Health Apps} This risk category involves apps abusing the permissions granted by the user, often falling into a regulatory gap (the "HIPAA loophole") where data is no longer protected by health-specific laws once shared by the user.
 
-\textbf{Mitigations:} Secure BLE pairing, device-bound cryptographic identities, strict HealthKit entitlements, OAuth~2.0 with secure token endpoints, and App Store security review contribute to preventing impersonation attempts \parencite{appleSecurity2023,appleSecurity2021}.
+\begin{itemize} 
+    \item An app with write access can inject false data (e.g., a fake heart rate spike) to skew a diagnosis or commit insurance fraud (\textbf{Tampering}). 
+    \item A malicious app can impersonate a legitimate fitness or hospital app to trick the user into granting access (\textbf{Spoofing}). 
+    \item An app can exfiltrate all health data to a remote server to be sold or used for ad targeting (\textbf{Information Disclosure}). 
+    \item An app may deny having written or deleted a health record, creating audit problems (\textbf{Repudiation}). 
+    \item Malicious apps could flood HealthKit with junk data, consuming storage and processing power (\textbf{Denial of Service}). 
+\end{itemize}
 
-\subsubsection{Tampering}
+\textbf{Mitigations:} 
+\begin{itemize} 
+    \item \textbf{Provider-Side:} Apple's strict App Store review, mandatory privacy "nutrition labels," and technical sandboxing of apps. 
+    \item \textbf{User-Side:} Scrutinize app permissions before granting, read privacy policies, and only download apps from trusted, well-known developers. 
+\end{itemize}
 
-Tampering refers to unauthorized modification of health data. Although the local HealthKit database is encrypted and tied to hardware keys, journal files created while the device is locked may represent a temporary target before they are merged into the main database \parencite{appleSecurity2023}. Third-party apps may also attempt to modify existing records without authorization, and external BLE devices could potentially transmit forged measurements. 
+\subsubsection{Sideloading and Malicious Configuration Profiles} "Sideloading" is the process of installing applications from outside the official App Store, typically by tricking a user into installing a malicious configuration profile. 
+\begin{itemize} 
+    \item \textbf{Method}: An attacker tricks the user into installing an app via an enterprise or developer certificate. 
+    \item \textbf{The Risk}: These apps are not verified by Apple. If the user agrees to "Trust" the developer, they are installing malware that can then request and potentially receive HealthKit access. 
+\end{itemize}
 
-\textbf{Mitigations:} Encryption at rest, integrity metadata for each record, verification during journal merging, and provenance tracking collectively reduce the likelihood of successful data modification \parencite{appleSecurity2023}.
+\textbf{Mitigations:} 
+\begin{itemize} 
+    \item \textbf{Provider-Side:} OS-level warnings (e.g., "Untrusted Developer"), certificate revocation for known abusers, and (in the EU) notarization requirements for apps outside the App Store. 
+    \item \textbf{User-Side:} Never install configuration profiles or "Trust" developers from untrusted sources (e.g., email links, random websites). 
+\end{itemize}
 
-\subsubsection{Repudiation}
+\subsection{Problems related to Devices} \subsubsection{External Connected Devices (BLE)} HealthKit relies on Bluetooth Low Energy (BLE) for many sensors. 
+\begin{itemize} 
+    \item An attacker within physical proximity could intercept or jam BLE communications (\textbf{Denial of Service}). 
+    \item A more skilled attacker could impersonate a trusted sensor (e.g., a heart rate monitor) and inject false data (\textbf{Spoofing}, \textbf{Tampering}). 
+    \item Exploiting a vulnerability in a poorly designed sensor could potentially allow an attacker to gain unintended permissions (\textbf{Elevation of Privilege}). 
+\end{itemize}
 
-Repudiation concerns disputes regarding who performed specific actions. A third-party application may deny having written or deleted a health record, while a user might dispute the origin of imported clinical lab results. Additionally, Health Sharing (user-to-user) does not provide fine-grained read receipts, which may limit legal accountability in certain contexts.
+\textbf{Mitigations:} 
+\begin{itemize} 
+    \item \textbf{Provider-Side:} Enforce secure BLE pairing (e.g., authenticated channels) at the OS level. 
+    \item \textbf{User-Side:} Use devices from reputable manufacturers that implement secure BLE protocols. 
+\end{itemize}
 
-\textbf{Mitigations:} Provenance metadata linking each record to app identifiers, the use of signed and timestamped clinical documents, and system-level logging help provide verifiable evidence of actions performed within the HealthKit ecosystem \parencite{applePrivacy2023,appleSecurity2023}.
+\subsubsection{Device Compromise (Jailbreaking)} A jailbroken device removes all of iOS's fundamental security protections (sandboxing, integrity checks), creating a worst-case scenario.\\
 
-\subsubsection{Information Disclosure}
+\textbf{Plausible Scenario:} A user takes their device to an unauthorized, "cheap" third-party repair shop. A malicious technician offers to perform a "system optimization" which is actually a jailbreak. The technician then installs a hidden tweak that exfiltrates the HealthKit database (healthdb.sqlite) to a remote server. The user, trusting the "repair," is unaware their entire health history is being stolen.
 
-Information Disclosure concerns unauthorized access to sensitive health data. Key risks include the possibility of an application requesting or receiving excessive permissions, weak iCloud configurations (such as a lack of two-factor authentication) preventing end-to-end encryption, interception of BLE communications between sensors and devices, and intentional lock-screen disclosure of Medical ID information, which represents a usability–privacy tradeoff.
+The direct consequences are: 
+\begin{itemize} 
+    \item \textbf{Database Theft:} The attacker gains root access and can directly copy the HealthKit database file, bypassing all permissions (\textbf{Elevation of Privilege} \& \textbf{Information Disclosure}). 
+    \item \textbf{Data Interception:} Malicious code can be injected directly into the Health app to intercept data in real-time or modify records (\textbf{Tampering}). 
+\end{itemize}
 
-\textbf{Mitigations:} HealthKit relies on a granular permission model, returns empty results when an app is unauthorized, enforces end-to-end encryption when iCloud conditions are met, secures BLE channels, and applies strong Data Protection classes to prevent disclosure of sensitive information \parencite{applePrivacy2023,appleSecurity2023}.
+\textbf{Mitigations:} 
+\begin{itemize} 
+    \item \textbf{User-Side:} Do not jailbreak the device; maintain physical control; use only trusted, authorized repair services. 
+    \item \textbf{Provider-Side:} Hardware security (Secure Enclave) and software patches to make jailbreaking extremely difficult. 
+\end{itemize}
 
-\subsubsection{Denial of Service}
+\subsection{Other Problems} \subsubsection{Phishing} An attacker sends an email or SMS impersonating an authority (hospital, insurance, Apple) to trick the user into revealing credentials. \begin{itemize} 
+    \item \textbf{Scenario 1 (iCloud Credential Theft)}: The attacker steals the user's Apple ID and password, potentially gaining access to iCloud backups if E2EE is not enabled. 
+    \item \textbf{Scenario 2 (Hospital Credential Theft)}: The attacker mimics a hospital portal to steal credentials, then uses them to access the user's official medical records. 
+\end{itemize}
 
-Denial of Service (DoS) encompasses actions that could reduce the availability of health data. Examples include BLE jamming that disrupts the collection of measurements, corruption of journal files preventing database merging after device unlock, cloud sync congestion delaying health data propagation, or malicious applications performing excessive write operations to HealthKit.
+\textbf{Mitigations:} 
+\begin{itemize} 
+    \item \textbf{User-Side:} User education on phishing, enabling 2FA on all accounts (especially Apple ID), and never entering credentials from an email link. 
+\end{itemize}
 
-\textbf{Mitigations:} HealthKit mitigates these risks through process isolation, journal-recovery mechanisms, cloud retry algorithms, sandboxing, and OS-level watchdog mechanisms that limit abusive behavior \parencite{appleSecurity2021,appleSecurity2023}.
+\subsubsection{Physical Access via Medical ID} 
+\textbf{Description}: This is an intentional privacy-versus-utility trade-off. The Medical ID is accessible from the lock screen without a passcode so emergency responders can see it. \\
+\textbf{The Risk}: Anyone with physical access to a locked phone (a thief, a colleague) can read the sensitive information in the Medical ID (\textbf{Information Disclosure}).\\
 
-\subsubsection{Elevation of Privilege}
+\textbf{Mitigations:} 
+\begin{itemize} 
+    \item \textbf{User-Side:} This is entirely user-controlled. The user can choose what information to include in their Medical ID (e.g., list allergies but not medications) or disable the "Show When Locked" feature entirely. 
+\end{itemize}
 
-Elevation of Privilege refers to cases where an application or attacker obtains more privileges than intended. This may involve exploiting OS vulnerabilities to bypass HealthKit permission prompts, requesting broader permissions than necessary, or abusing insecure BLE peripherals to inject privileged data types into the HealthKit store.
+\subsubsection{Supply Chain Attacks} \textbf{Description}: This is a sophisticated attack that targets the app developer, not the end-user. An attacker compromises a third-party tool, such as an analytics SDK or ad library, that the developer uses. \\
+\textbf{The Risk}: The developer unknowingly embeds this malicious code into their own legitimate app. This "Trojan" app then passes App Store review but contains a hidden backdoor to exfiltrate HealthKit data from all of its users (\textbf{Information Disclosure}, \textbf{Tampering}, \textbf{Elevation of Privilege}).
 
-\textbf{Mitigations:} Mandatory entitlements, OS-enforced consent screens, strict application sandboxing, and App Store security vetting reduce the risk of privilege escalation \parencite{appleSecurity2023,appleSecurity2021}.
+\textbf{Mitigations:} 
+\begin{itemize} 
+    \item \textbf{Provider-Side (Apple):} Continued enhancement of static and dynamic analysis during App Store review to detect malicious behavior in third-party SDKs. 
+    \item \textbf{Provider-Side (Developer):} Vetting all third-party dependencies; using secure coding practices; minimizing the dependencies included in their app. 
+\end{itemize}
 
+
+\section{Conclusion}
+To answer the core question if Apple HealthKit stands out from other mobile health applications in terms of security HealthKit provides one of the most robust foundations available. Its security is built on a locally encrypted database (using keys the user controls, which Apple cannot decrypt) and offers opt-in, end-to-end encryption for iCloud backups via Advanced Data Protection, ensuring a high level of privacy.
+
+However, as demonstrated in the STRIDE analysis, this architecture doesn't eliminate all threats. Two main responsibilities must be considered: \begin{itemize} \item \textbf{Apple} is responsible for maintaining the integrity of the platform. This includes patching vulnerabilities (such as historical certificate abuse and app-spoofing), strictly vetting the App Store to enforce privacy rules, and providing users with tools like Advanced Data Protection for end-to-end cloud encryption. \item \textbf{Users} must be responsible. Even if HealthKit is one of the most secure apps, it can still be compromised by user actions, such as granting excessive permissions to untrusted third-party apps, falling victim to sophisticated phishing attacks, or choosing a weak device passcode. \end{itemize}
+
+In conclusion, HealthKit does stand out by providing a high-security baseline that mitigates entire classes of threats by default. However, the practical, day-to-day security of the data rests on a dynamic partnership between Apple's robust engineering and the user's vigilant awareness.
 \section{Biblio}
 \printbibliography
 
