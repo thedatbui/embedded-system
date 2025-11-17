@@ -1,4 +1,22 @@
 \documentclass[12pt]{article}
+
+\usepackage[utf8]{inputenc}
+
+\usepackage[parfill]{parskip}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,urlcolor=blue,linkcolor=black}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{listingsutf8}
+\usepackage{subcaption}
+\usepackage[most]{tcolorbox}
+\usepackage{fancybox}
+\renewcommand*\contentsname{Table des matières}
+
+\usepackage{fullpage}
 \usepackage[utf8]{inputenc}
 \usepackage{hyperref}
 \usepackage{csquotes}
@@ -174,6 +192,17 @@ This is a deliberate trade-off prioritizing life-critical availability over conf
 \subsubsection{User to user Sharing}
 HealthKit allows users to share selected health data with other users via iCloud, protected by end-to-end encryption (iOS 15+, 2FA) \parencite{applePrivacy2023}.  
 Only the sender and recipient possess the decryption keys, ensuring privacy even from Apple servers.
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\linewidth]{Embeded sys/diagram.png}
+    \caption{Caption}
+    \label{fig:placeholder}
+\end{figure}
+
+
+
 
 \section{STRIDE Threat Analysis for Apple HealthKit}
 
